@@ -153,7 +153,7 @@
 <body>
 <div class="container">
   <div class="header">
-    <h1>🐴 馬年通勝月曆 · 吉凶擇日</h1>
+    <h1>通勝月曆 · 吉凶擇日</h1>
     <div style="font-size:0.9em; margin-top:5px;">學習自傳統黃曆與周易擇日原理 · 僅供參考</div>
   </div>
 
@@ -189,8 +189,8 @@
   </table>
 
   <div class="info">
-    已增加農曆近似顯示、詳細宜事項與忌事項。<br>
-    農曆為簡化近似（僅供參考），吉凶與宜忌基於建除十二神傳統口訣。重要事宜請查正版通勝。
+    已修正農曆日期計算（基於春節日期推算，2024-2030較準），並移除年份相關固定文字。<br>
+    農曆仍為近似值（未含閏月精確處理），重要事宜請以正版通勝為準。
   </div>
 </div>
 
@@ -217,15 +217,55 @@ function getJianchu(year, month, day) {
   return jianchu[offset];
 }
 
-// 簡易農曆近似（僅供顯示參考，非精確）
-function getApproxLunar(year, month, day) {
-  // 粗略偏移：公曆月大致對應農曆，加簡單日數調整
+// 較準確農曆（基於已知春節日期推算，適用 2024-2030）
+const cnyDates = {
+  2024: [2, 10],
+  2025: [1, 29],
+  2026: [2, 17],
+  2027: [2, 6],
+  2028: [1, 26],
+  2029: [2, 13],
+  2030: [2, 3]
+};
+
+function getLunar(year, month, day) {
   const lunarMonths = ['正月','二月','三月','四月','五月','六月','七月','八月','九月','十月','冬月','臘月'];
-  let lm = month - 1;
-  let ld = day - 5; // 粗略偏移
-  if (ld < 1) { ld += 29; lm = (lm + 11) % 12; }
-  if (ld > 30) { ld -= 30; lm = (lm + 1) % 12; }
-  return lunarMonths[lm] + (ld < 10 ? '初' + ['','一','二','三','四','五','六','七','八','九'][ld] : (ld === 10 ? '初十' : ld));
+  let cny = cnyDates[year];
+  if (!cny) {
+    // 超出範圍時用粗略估算
+    const approx = new Date(year, 1, 10);
+    cny = [approx.getMonth()+1, approx.getDate()];
+  }
+  const target = new Date(year, month-1, day);
+  const cnyDate = new Date(year, cny[0]-1, cny[1]);
+  let diff = Math.round((target - cnyDate) / 86400000);
+  
+  if (diff < 0) {
+    // 在當年春節前，算上一年的臘月
+    const prevCny = cnyDates[year-1] || [1, 20];
+    const prevCnyDate = new Date(year-1, prevCny[0]-1, prevCny[1]);
+    diff = Math.round((target - prevCnyDate) / 86400000);
+    const lunarMonth = Math.floor(diff / 29.5);
+    const lunarDay = Math.floor(diff % 29.5) + 1;
+    if (lunarMonth >= 11) return '臘月' + formatLunarDay(lunarDay);
+    return lunarMonths[lunarMonth] + formatLunarDay(lunarDay);
+  }
+  
+  const lunarMonth = Math.floor(diff / 29.5);
+  const lunarDay = Math.floor(diff % 29.5) + 1;
+  if (lunarMonth >= 12) return '臘月' + formatLunarDay(lunarDay - 30*Math.floor(lunarMonth/12));
+  return lunarMonths[Math.min(lunarMonth, 11)] + formatLunarDay(lunarDay);
+}
+
+function formatLunarDay(d) {
+  if (d <= 0) d = 1;
+  if (d > 30) d = d % 30 || 30;
+  const nums = ['','一','二','三','四','五','六','七','八','九','十'];
+  if (d <= 10) return '初' + nums[d];
+  if (d < 20) return '十' + nums[d-10];
+  if (d === 20) return '二十';
+  if (d < 30) return '廿' + nums[d-20];
+  return '三十';
 }
 
 function getLuckAndYi(year, month, day) {
@@ -304,7 +344,7 @@ function generateCalendar() {
 
   for (let d = 1; d <= daysInMonth; d++) {
     const { luck, yi, ji } = getLuckAndYi(year, month, d);
-    const lunar = getApproxLunar(year, month, d);
+    const lunar = getLunar(year, month, d);
     const cls = luck === '吉' ? 'ji' : luck === '凶' ? 'xiong' : 'ping';
     const today = new Date();
     const isToday = (year === today.getFullYear() && month === (today.getMonth() + 1) && d === today.getDate());
